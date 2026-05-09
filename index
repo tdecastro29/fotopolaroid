@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Polaroid Print</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Nunito:wght@300;400;600&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #f5f0e8;
+    --warm-white: #faf8f4;
+    --brown: #5c4a35;
+    --light-brown: #9b856a;
+    --accent: #c0392b;
+  }
+
+  body {
+    background: var(--cream);
+    font-family: 'Nunito', sans-serif;
+    color: var(--brown);
+    min-height: 100vh;
+    padding-bottom: 80px;
+  }
+
+  header {
+    background: var(--brown); color: var(--cream);
+    padding: 18px 20px 14px; text-align: center;
+    position: sticky; top: 0; z-index: 100;
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 { font-family: 'Special Elite', cursive; font-size: 22px; letter-spacing: 2px; font-weight: 400; }
+  header p  { font-size: 11px; opacity: .7; margin-top: 3px; letter-spacing: 1px; text-transform: uppercase; }
+
+  .container { padding: 20px 16px; max-width: 420px; margin: 0 auto; }
+
+  .section-label {
+    font-family: 'Special Elite', cursive; font-size: 13px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--light-brown); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--light-brown); opacity: .4; }
+
+  /* ── Upload slots ── */
+  .photos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+
+  .photo-slot {
+    background: var(--warm-white); border: 1.5px dashed var(--light-brown);
+    border-radius: 4px; padding: 12px 10px 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    cursor: pointer; transition: border-color .2s, background .2s;
+    position: relative; min-height: 150px;
+  }
+  .photo-slot:active { background: #ede8df; }
+  .photo-slot.has-photo { border-style: solid; border-color: var(--brown); }
+  .photo-slot input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .photo-slot.has-photo input[type="file"] { display: none; }
+  .slot-preview { width: 100%; aspect-ratio: 1; background: #e8e2d8; border-radius: 2px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .slot-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .slot-icon { font-size: 28px; opacity: .35; }
+  .slot-label { font-size: 11px; color: var(--light-brown); text-align: center; line-height: 1.3; }
+  .slot-num { position: absolute; top: 6px; left: 8px; font-family: 'Special Elite', cursive; font-size: 10px; color: var(--light-brown); letter-spacing: 1px; }
+  .remove-btn {
+    position: absolute; top: 5px; right: 5px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: white; border: none;
+    font-size: 12px; cursor: pointer; display: none;
+    align-items: center; justify-content: center; z-index: 5; line-height: 1;
+  }
+  .photo-slot.has-photo .remove-btn { display: flex; }
+
+  /* ── Adjust cards ── */
+  .adjust-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+
+  .adjust-card {
+    background: var(--warm-white); border: 1px solid #ccc5b5; border-radius: 6px;
+    padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    opacity: .3; pointer-events: none; transition: opacity .25s;
+  }
+  .adjust-card.active { opacity: 1; pointer-events: all; }
+  .adjust-card-label { font-size: 10px; color: var(--light-brown); letter-spacing: 1px; text-transform: uppercase; text-align: center; }
+
+  .drag-frame {
+    width: 100%; aspect-ratio: 1;
+    overflow: hidden; border-radius: 2px; position: relative;
+    background: #ccc; cursor: grab; touch-action: none; user-select: none;
+  }
+  .drag-frame:active { cursor: grabbing; }
+  .drag-frame img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; transform-origin: center center;
+    pointer-events: none; will-change: transform;
+  }
+  .drag-hint {
+    position: absolute; bottom: 5px; left: 0; right: 0;
+    text-align: center; font-size: 9px;
+    color: rgba(255,255,255,.9); letter-spacing: .5px;
+    text-shadow: 0 1px 3px rgba(0,0,0,.5);
+    pointer-events: none; transition: opacity .4s;
+  }
+
+  .zoom-row { display: flex; align-items: center; gap: 8px; }
+  .zoom-row span { font-family: 'Special Elite', cursive; font-size: 11px; color: var(--brown); min-width: 32px; text-align: right; }
+  .zoom-row input[type="range"] {
+    flex: 1; -webkit-appearance: none; height: 3px; border-radius: 2px;
+    background: linear-gradient(to right, var(--brown) 0%, var(--brown) var(--pct,0%), #ccc5b5 var(--pct,0%), #ccc5b5 100%);
+    outline: none; cursor: pointer;
+  }
+  .zoom-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--brown); cursor: pointer;
+    border: 2px solid var(--warm-white); box-shadow: 0 1px 4px rgba(0,0,0,.2);
+  }
+  .zoom-limits { font-size: 9px; color: var(--light-brown); display: flex; justify-content: space-between; }
+
+  /* Margin sliders */
+  .margin-box {
+    background: var(--warm-white); border: 1px solid #ccc5b5;
+    border-radius: 6px; padding: 14px 14px 12px; margin-bottom: 24px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .margin-row { display: flex; align-items: center; gap: 10px; }
+  .margin-row .m-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+  .margin-row .m-label {
+    font-size: 10px; color: var(--light-brown); letter-spacing: .8px;
+    text-transform: uppercase; width: 46px; flex-shrink: 0;
+  }
+  .margin-row input[type="range"] {
+    flex: 1; -webkit-appearance: none; height: 3px; border-radius: 2px;
+    background: linear-gradient(to right, var(--brown) 0%, var(--brown) var(--pct,0%), #ccc5b5 var(--pct,0%), #ccc5b5 100%);
+    outline: none; cursor: pointer;
+  }
+  .margin-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--brown); cursor: pointer;
+    border: 2px solid var(--warm-white); box-shadow: 0 1px 4px rgba(0,0,0,.2);
+  }
+  .margin-row .m-val {
+    font-family: 'Special Elite', cursive; font-size: 11px;
+    color: var(--brown); min-width: 42px; text-align: right; flex-shrink: 0;
+  }
+  .margin-reset {
+    align-self: flex-end; padding: 4px 12px;
+    border: 1px solid var(--light-brown); border-radius: 3px;
+    background: transparent; color: var(--light-brown);
+    font-family: 'Nunito', sans-serif; font-size: 11px; cursor: pointer;
+    transition: all .15s;
+  }
+  .margin-reset:active { background: var(--light-brown); color: white; }
+
+  /* ── Captions ── */
+  .caption-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .caption-field { display: flex; flex-direction: column; gap: 5px; }
+  .caption-field label { font-size: 11px; color: var(--light-brown); letter-spacing: 1px; text-transform: uppercase; }
+  .caption-field input {
+    border: 1px solid #ccc5b5; border-radius: 4px; padding: 8px 10px;
+    font-family: 'Special Elite', cursive; font-size: 13px;
+    color: var(--brown); background: var(--warm-white); outline: none;
+  }
+  .caption-field input:focus { border-color: var(--brown); }
+
+  /* ── Orientation ── */
+  .options-row { display: flex; gap: 10px; margin-bottom: 24px; }
+  .option-btn {
+    flex: 1; padding: 9px 12px; border: 1.5px solid var(--brown); border-radius: 4px;
+    background: transparent; color: var(--brown);
+    font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all .15s; text-align: center;
+  }
+  .option-btn.active { background: var(--brown); color: var(--cream); }
+
+  /* ── Paper preview ── */
+  .preview-wrap {
+    background: #3a3a3a; border-radius: 6px; padding: 16px;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 24px;
+  }
+  .paper-preview { background: white; position: relative; display: flex; }
+  .paper-preview.landscape { width: 310px; height: 207px; flex-direction: row; align-items: stretch; }
+  .paper-preview.portrait  { width: 207px; height: 310px; flex-direction: column; align-items: stretch; }
+
+
+  .polaroid-cell {
+    flex: 1; background: white;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 9px 7px 0 7px;
+  }
+  .cell-photo {
+    width: 100%; aspect-ratio: 5 / 6;
+    overflow: hidden; position: relative; flex-shrink: 0;
+    background: #d5cfc5;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #aaa; letter-spacing: .5px;
+  }
+  .cell-photo img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; transform-origin: center center; pointer-events: none;
+  }
+  .cell-caption {
+    flex: 1; width: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Special Elite', cursive; font-size: 7px; color: #555;
+    text-align: center; padding: 2px 3px;
+  }
+
+  /* ── Print button ── */
+  .print-btn {
+    width: 100%; padding: 16px; border: none; border-radius: 6px;
+    font-family: 'Special Elite', cursive; font-size: 18px; letter-spacing: 3px;
+    cursor: pointer; transition: background .2s, transform .1s;
+    margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: var(--accent); color: white;
+  }
+  .print-btn:active { background: #a93226; transform: scale(.98); }
+  .print-tip { text-align: center; font-size: 11px; color: var(--light-brown); line-height: 1.5; padding: 0 10px; }
+
+  /* ── Print layout ── */
+  @media print {
+    @page {
+      size: 15cm 10cm;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    html {
+      width: 15cm !important; height: 10cm !important;
+      margin: 0 !important; padding: 0 !important;
+      overflow: hidden !important;
+    }
+
+    body {
+      width: 15cm !important; height: 10cm !important;
+      margin: 0 !important; padding: 0 !important;
+      overflow: hidden !important; background: white !important;
+      min-height: unset !important;
+    }
+
+    /* hide absolutely everything */
+    body * { visibility: hidden !important; display: none !important; }
+
+    /* show only the print layout and its children */
+    #printLayout,
+    #printLayout * {
+      visibility: visible !important;
+      display: revert !important;
+    }
+
+    #printLayout {
+      display: flex !important;
+      position: fixed !important;
+      top: 0 !important; left: 0 !important;
+      width: 15cm !important; height: 10cm !important;
+      margin: 0 !important; padding: 0 !important;
+      background: white !important;
+    }
+  }
+
+  #printLayout {
+    display: none; position: fixed; top: 0; left: 0;
+    width: 15cm; height: 10cm; background: white; z-index: 9999;
+    flex-direction: row;
+  }
+  .print-polaroid {
+    width: 7.5cm; height: 10cm;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0.65cm 0.5cm 0 0.5cm; background: white; flex-shrink: 0;
+  }
+  .print-photo {
+    width: 6.5cm; height: 7.8cm;
+    overflow: hidden; position: relative; flex-shrink: 0; background: #eee;
+  }
+  .print-photo img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; transform-origin: center center;
+  }
+  .print-caption {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-family: 'Special Elite', cursive; font-size: 14pt; color: #333;
+    text-align: center; padding: 0 0.3cm;
+  }
+
+</style>
+</head>
+<body>
+
+<div id="printLayout">
+  <div class="print-polaroid">
+    <div class="print-photo" id="ppPhoto1"></div>
+    <div class="print-caption" id="ppCaption1"></div>
+  </div>
+  <div class="print-polaroid">
+    <div class="print-photo" id="ppPhoto2"></div>
+    <div class="print-caption" id="ppCaption2"></div>
+  </div>
+</div>
+
+<header>
+  <h1>✦ Polaroid Print ✦</h1>
+  <p>2 fotos num papel 10×15cm</p>
+</header>
+
+<div class="container">
+
+  <div class="section-label">Suas fotos</div>
+  <div class="photos-grid">
+    <div class="photo-slot" id="slot1">
+      <span class="slot-num">01</span>
+      <input type="file" accept="image/*" id="file1" onchange="loadPhoto(1,this)">
+      <div class="slot-preview" id="slotPrev1"><span class="slot-icon">📷</span></div>
+      <div class="slot-label">Toque para<br>escolher foto</div>
+      <button class="remove-btn" onclick="removePhoto(1)">×</button>
+    </div>
+    <div class="photo-slot" id="slot2">
+      <span class="slot-num">02</span>
+      <input type="file" accept="image/*" id="file2" onchange="loadPhoto(2,this)">
+      <div class="slot-preview" id="slotPrev2"><span class="slot-icon">📷</span></div>
+      <div class="slot-label">Toque para<br>escolher foto</div>
+      <button class="remove-btn" onclick="removePhoto(2)">×</button>
+    </div>
+  </div>
+
+  <div class="section-label">Ajuste das fotos</div>
+  <div class="adjust-grid">
+    <div class="adjust-card" id="adjustCard1">
+      <div class="adjust-card-label">Foto 1</div>
+      <div class="drag-frame" id="dragFrame1">
+        <div class="drag-hint" id="hint1">arraste para mover</div>
+      </div>
+      <div class="zoom-row">
+        <span>🔍</span>
+        <input type="range" id="zoomSlider1" min="100" max="300" value="100" step="1" oninput="onZoom(1,this.value)">
+        <span id="zoomVal1">100%</span>
+      </div>
+      <div class="zoom-limits"><span>−</span><span>+</span></div>
+    </div>
+    <div class="adjust-card" id="adjustCard2">
+      <div class="adjust-card-label">Foto 2</div>
+      <div class="drag-frame" id="dragFrame2">
+        <div class="drag-hint" id="hint2">arraste para mover</div>
+      </div>
+      <div class="zoom-row">
+        <span>🔍</span>
+        <input type="range" id="zoomSlider2" min="100" max="300" value="100" step="1" oninput="onZoom(2,this.value)">
+        <span id="zoomVal2">100%</span>
+      </div>
+      <div class="zoom-limits"><span>−</span><span>+</span></div>
+    </div>
+  </div>
+
+  <div class="section-label">Legendas</div>
+  <div class="caption-inputs">
+    <div class="caption-field">
+      <label>Foto 1</label>
+      <input type="text" id="caption1" placeholder="ex: verão 2024" maxlength="25" oninput="updateCaptions()">
+    </div>
+    <div class="caption-field">
+      <label>Foto 2</label>
+      <input type="text" id="caption2" placeholder="ex: minha gente" maxlength="25" oninput="updateCaptions()">
+    </div>
+  </div>
+
+  <div class="section-label">Margens da polaroide</div>
+  <div class="margin-box">
+    <div class="margin-row">
+      <span class="m-icon">⬆</span>
+      <span class="m-label">Topo</span>
+      <input type="range" id="sliderTop" min="10" max="100" value="65" step="1" oninput="onMargin('top', this.value)">
+      <span class="m-val" id="valTop">0.65 cm</span>
+    </div>
+    <div class="margin-row">
+      <span class="m-icon">⬌</span>
+      <span class="m-label">Lados</span>
+      <input type="range" id="sliderSide" min="10" max="100" value="50" step="1" oninput="onMargin('side', this.value)">
+      <span class="m-val" id="valSide">0.50 cm</span>
+    </div>
+    <div class="margin-row">
+      <span class="m-icon">⬇</span>
+      <span class="m-label">Baixo</span>
+      <input type="range" id="sliderBottom" min="30" max="200" value="155" step="1" oninput="onMargin('bottom', this.value)">
+      <span class="m-val" id="valBottom">1.55 cm</span>
+    </div>
+    <button class="margin-reset" onclick="resetMargins()">↺ Restaurar padrão</button>
+  </div>
+
+  <div class="section-label">Orientação do papel</div>
+  <div class="options-row">
+    <button class="option-btn active" id="btnLandscape" onclick="setOrientation('landscape')">⬌ Paisagem</button>
+    <button class="option-btn" id="btnPortrait"  onclick="setOrientation('portrait')">⬍ Retrato</button>
+  </div>
+
+  <div class="section-label">Pré-visualização</div>
+  <div class="preview-wrap">
+    <div class="paper-preview landscape" id="paperPreview">
+      <div class="polaroid-cell">
+        <div class="cell-photo" id="cellPhoto1">sem foto</div>
+        <div class="cell-caption" id="cellCap1"></div>
+      </div>
+      <div class="polaroid-cell">
+        <div class="cell-photo" id="cellPhoto2">sem foto</div>
+        <div class="cell-caption" id="cellCap2"></div>
+      </div>
+    </div>
+  </div>
+
+  <button class="print-btn" onclick="handlePrint()">🖨 IMPRIMIR</button>
+  <p class="print-tip">
+    Selecione <strong>10×15cm</strong> no tamanho do papel · sem margens<br>
+    Após imprimir, corte pelo meio ✂︎
+  </p>
+
+</div>
+
+<script>
+  /* ══════════════════════════════════
+     STATE
+  ══════════════════════════════════ */
+  const S = {
+    1: { src: null, zoom: 1, ox: 0, oy: 0 },
+    2: { src: null, zoom: 1, ox: 0, oy: 0 }
+  };
+  let orientation = 'landscape';
+
+  // Margins in cm (landscape reference: polaroid cell = 7.5 x 10 cm)
+  const DEF_M = { top: 0.65, side: 0.50, bottom: 1.55 };
+  const M = { ...DEF_M };
+
+  function sliderGrad(id, val, min, max) {
+    const pct = ((val - min) / (max - min) * 100).toFixed(1) + '%';
+    document.getElementById(id).style.setProperty('--pct', pct);
+  }
+
+  function onMargin(key, raw) {
+    M[key] = parseInt(raw) / 100; // slider in 1/100 cm steps
+    applyMargins();
+  }
+
+  function resetMargins() {
+    Object.assign(M, DEF_M);
+    document.getElementById('sliderTop').value    = Math.round(DEF_M.top    * 100);
+    document.getElementById('sliderSide').value   = Math.round(DEF_M.side   * 100);
+    document.getElementById('sliderBottom').value = Math.round(DEF_M.bottom * 100);
+    applyMargins();
+  }
+
+  function applyMargins() {
+    // Preview scale: landscape cell = 155px wide, 207px tall = 7.5cm x 10cm
+    const SCALE = 207 / 10; // px per cm
+    const topPx  = (M.top  * SCALE).toFixed(1);
+    const sidePx = (M.side * SCALE).toFixed(1);
+
+    // Photo dimensions (landscape reference)
+    const photoW = 7.5 - 2 * M.side;
+    const photoH = 10  - M.top - M.bottom;
+    const ratio  = Math.max(0.3, photoW / Math.max(0.5, photoH));
+
+    document.querySelectorAll('.polaroid-cell').forEach(el => {
+      el.style.padding = `${topPx}px ${sidePx}px 0 ${sidePx}px`;
+    });
+    document.querySelectorAll('.cell-photo').forEach(el => {
+      el.style.aspectRatio = ratio;
+    });
+
+    document.getElementById('valTop').textContent    = M.top.toFixed(2)    + ' cm';
+    document.getElementById('valSide').textContent   = M.side.toFixed(2)   + ' cm';
+    document.getElementById('valBottom').textContent = M.bottom.toFixed(2) + ' cm';
+
+    sliderGrad('sliderTop',    M.top    * 100, 10, 100);
+    sliderGrad('sliderSide',   M.side   * 100, 10, 100);
+    sliderGrad('sliderBottom', M.bottom * 100, 30, 200);
+  }
+
+  /* ══════════════════════════════════
+     DRAG
+  ══════════════════════════════════ */
+  [1, 2].forEach(n => {
+    const frame = document.getElementById('dragFrame' + n);
+    let dragging = false, sx, sy, sox, soy;
+
+    const clamp = (ox, oy) => {
+      const half = frame.offsetWidth * (S[n].zoom - 1) / 2;
+      return { x: Math.max(-half, Math.min(half, ox)), y: Math.max(-half, Math.min(half, oy)) };
+    };
+
+    const start = (cx, cy) => {
+      if (!S[n].src) return;
+      dragging = true; sx = cx; sy = cy; sox = S[n].ox; soy = S[n].oy;
+      frame.style.cursor = 'grabbing';
+      const h = document.getElementById('hint' + n);
+      if (h) h.style.opacity = '0';
+    };
+    const move = (cx, cy) => {
+      if (!dragging) return;
+      const c = clamp(sox + cx - sx, soy + cy - sy);
+      S[n].ox = c.x; S[n].oy = c.y;
+      applyTransform(n);
+    };
+    const end = () => { dragging = false; frame.style.cursor = 'grab'; };
+
+    frame.addEventListener('touchstart', e => { e.preventDefault(); start(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+    frame.addEventListener('touchmove',  e => { e.preventDefault(); move(e.touches[0].clientX,  e.touches[0].clientY);  }, { passive: false });
+    frame.addEventListener('touchend',   end);
+    frame.addEventListener('mousedown',  e => { e.preventDefault(); start(e.clientX, e.clientY); });
+    window.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+    window.addEventListener('mouseup',   end);
+  });
+
+  /* ══════════════════════════════════
+     TRANSFORM
+  ══════════════════════════════════ */
+  function applyTransform(n) {
+    const { zoom, ox, oy } = S[n];
+    const t = `translate(${ox}px,${oy}px) scale(${zoom})`;
+    const df = document.querySelector('#dragFrame' + n + ' img');
+    if (df) df.style.transform = t;
+    const cp = document.querySelector('#cellPhoto' + n + ' img');
+    if (cp) cp.style.transform = t;
+  }
+
+  /* ══════════════════════════════════
+     ZOOM
+  ══════════════════════════════════ */
+  function onZoom(n, val) {
+    const v = parseInt(val);
+    S[n].zoom = v / 100;
+    document.getElementById('zoomVal' + n).textContent = v + '%';
+    document.getElementById('zoomSlider' + n).style.setProperty('--pct', ((v - 100) / 200 * 100).toFixed(1) + '%');
+    const frame = document.getElementById('dragFrame' + n);
+    const half = frame.offsetWidth * (S[n].zoom - 1) / 2;
+    S[n].ox = Math.max(-half, Math.min(half, S[n].ox));
+    S[n].oy = Math.max(-half, Math.min(half, S[n].oy));
+    applyTransform(n);
+  }
+
+  /* ══════════════════════════════════
+     LOAD / REMOVE
+  ══════════════════════════════════ */
+  function loadPhoto(n, input) {
+    if (!input.files || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const src = e.target.result;
+      S[n] = { src, zoom: 1, ox: 0, oy: 0 };
+
+      document.getElementById('slotPrev' + n).innerHTML = `<img src="${src}" alt="">`;
+      const slot = document.getElementById('slot' + n);
+      slot.classList.add('has-photo');
+      slot.querySelector('.slot-label').style.display = 'none';
+
+      document.getElementById('dragFrame' + n).innerHTML =
+        `<img src="${src}" alt=""><div class="drag-hint" id="hint${n}">arraste para mover</div>`;
+
+      const sl = document.getElementById('zoomSlider' + n);
+      sl.value = 100; sl.style.setProperty('--pct', '0%');
+      document.getElementById('zoomVal' + n).textContent = '100%';
+      document.getElementById('adjustCard' + n).classList.add('active');
+
+      const cell = document.getElementById('cellPhoto' + n);
+      cell.innerHTML = `<img src="${src}" alt="">`;
+      cell.style.color = 'transparent';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  function removePhoto(n) {
+    S[n] = { src: null, zoom: 1, ox: 0, oy: 0 };
+    const slot = document.getElementById('slot' + n);
+    document.getElementById('slotPrev' + n).innerHTML = '<span class="slot-icon">📷</span>';
+    slot.classList.remove('has-photo');
+    slot.querySelector('.slot-label').style.display = '';
+    document.getElementById('file' + n).value = '';
+    document.getElementById('adjustCard' + n).classList.remove('active');
+    document.getElementById('dragFrame' + n).innerHTML = `<div class="drag-hint" id="hint${n}">arraste para mover</div>`;
+    const sl = document.getElementById('zoomSlider' + n);
+    sl.value = 100; sl.style.setProperty('--pct', '0%');
+    document.getElementById('zoomVal' + n).textContent = '100%';
+    const cell = document.getElementById('cellPhoto' + n);
+    cell.innerHTML = 'sem foto'; cell.style.color = '';
+  }
+
+  /* ══════════════════════════════════
+     CAPTIONS / ORIENTATION
+  ══════════════════════════════════ */
+  function updateCaptions() {
+    [1,2].forEach(n => {
+      document.getElementById('cellCap' + n).textContent =
+        document.getElementById('caption' + n).value;
+    });
+  }
+
+  function setOrientation(o) {
+    orientation = o;
+    document.getElementById('paperPreview').className = 'paper-preview ' + o;
+    document.getElementById('btnLandscape').classList.toggle('active', o === 'landscape');
+    document.getElementById('btnPortrait').classList.toggle('active', o === 'portrait');
+  }
+
+  /* ══════════════════════════════════
+     PDF — CANVAS RENDER
+  ══════════════════════════════════ */
+
+  /* trigger layout update on Ctrl+P before browser opens dialog */
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      handlePrint(false); /* populate layout but skip window.print() — browser handles it */
+    }
+  });
+
+  window.addEventListener('beforeprint', () => {
+    handlePrint(false);
+  });
+  /* ── Print ── */
+  function handlePrint(doprint = true) {
+    [1,2].forEach(n => {
+      const pPhoto = document.getElementById('ppPhoto' + n);
+      document.getElementById('ppCaption' + n).textContent =
+        document.getElementById('caption' + n).value;
+
+      if (S[n].src) {
+        const frame  = document.getElementById('dragFrame' + n);
+        const pxSize = frame.offsetWidth;
+        const cmSize = orientation === 'portrait' ? (10 - 2 * M.side * (10/7.5)) : (7.5 - 2 * M.side);
+        const ratio  = cmSize / pxSize;
+        const oxCm   = (S[n].ox * ratio).toFixed(4);
+        const oyCm   = (S[n].oy * ratio).toFixed(4);
+        pPhoto.innerHTML =
+          `<img src="${S[n].src}" alt="" style="transform:translate(${oxCm}cm,${oyCm}cm) scale(${S[n].zoom})">`;
+      } else {
+        pPhoto.innerHTML = '';
+        pPhoto.style.background = '#f0ebe2';
+      }
+    });
+
+    const pl = document.getElementById('printLayout');
+    if (orientation === 'portrait') {
+      // portrait: cell = 10cm wide x 7.5cm tall
+      const ptSideScaled = (M.side * (10/7.5)).toFixed(3);
+      const ptTopScaled  = (M.top  * (7.5/10)).toFixed(3);
+      const ptBotScaled  = (M.bottom * (7.5/10)).toFixed(3);
+      const ptPhotoW = (10  - 2 * parseFloat(ptSideScaled)).toFixed(3) + 'cm';
+      const ptPhotoH = (7.5 - parseFloat(ptTopScaled) - parseFloat(ptBotScaled)).toFixed(3) + 'cm';
+      const ptPad    = `${ptTopScaled}cm ${ptSideScaled}cm 0 ${ptSideScaled}cm`;
+      Object.assign(pl.style, { flexDirection:'column', width:'10cm', height:'15cm' });
+      pl.querySelectorAll('.print-polaroid').forEach(p =>
+        Object.assign(p.style, { width:'10cm', height:'7.5cm', padding: ptPad }));
+      pl.querySelectorAll('.print-photo').forEach(p =>
+        Object.assign(p.style, { width: ptPhotoW, height: ptPhotoH }));
+
+    } else {
+      const lsPhotoW = (7.5 - 2 * M.side).toFixed(3) + 'cm';
+      const lsPhotoH = (10  - M.top - M.bottom).toFixed(3) + 'cm';
+      const lsPad    = `${M.top.toFixed(3)}cm ${M.side.toFixed(3)}cm 0 ${M.side.toFixed(3)}cm`;
+      Object.assign(pl.style, { flexDirection:'row', width:'15cm', height:'10cm' });
+      pl.querySelectorAll('.print-polaroid').forEach(p =>
+        Object.assign(p.style, { width:'7.5cm', height:'10cm', padding: lsPad }));
+      pl.querySelectorAll('.print-photo').forEach(p =>
+        Object.assign(p.style, { width: lsPhotoW, height: lsPhotoH }));
+
+    }
+
+    if (doprint) window.print();
+  }
+</script>
+</body>
+</html>
